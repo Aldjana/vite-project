@@ -60,7 +60,7 @@ const Header = ({ title }) => {
               className="ml-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200 sm:h-10 sm:w-10"
               aria-hidden
             >
-              <span className="text-sm font-semibold text-gray-700">AS</span>
+              <span className="text-sm font-semibold text-gray-700">AD</span>
             </div>
 
             <button

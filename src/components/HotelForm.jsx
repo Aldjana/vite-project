@@ -1,6 +1,14 @@
 import { FaImage } from 'react-icons/fa';
 
-const HotelForm = ({ hotel, photoPreview, onChange, onPhotoChange, onSubmit }) => {
+const HotelForm = ({
+  hotel,
+  photoPreview,
+  onChange,
+  onPhotoChange,
+  onSubmit,
+  submitDisabled = false,
+  submitLabel = 'Enregistrer'
+}) => {
   return (
     <form onSubmit={onSubmit} className="space-y-5 pt-1">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
@@ -116,9 +124,10 @@ const HotelForm = ({ hotel, photoPreview, onChange, onPhotoChange, onSubmit }) =
       <div className="flex justify-end border-t border-gray-100 pt-4">
         <button
           type="submit"
-          className="min-h-[48px] w-full rounded-lg bg-gray-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-900 sm:min-h-0 sm:w-auto sm:px-8"
+          disabled={submitDisabled}
+          className="min-h-[48px] w-full rounded-lg bg-gray-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-900 disabled:cursor-not-allowed disabled:bg-gray-500 sm:min-h-0 sm:w-auto sm:px-8"
         >
-          Enregistrer
+          {submitLabel}
         </button>
       </div>
     </form>

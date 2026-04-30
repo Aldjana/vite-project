@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FaPlus } from 'react-icons/fa6';
 import Header from '../components/Header';
 import HotelCard from '../components/HotelCard';
 import Modal from '../components/Modal';
 import HotelForm from '../components/HotelForm';
+import { fetchHotels, createHotelRequest, updateHotelRequest, deleteHotelRequest } from '../services/hotelsApi';
 
 const emptyHotel = {
   name: '',
@@ -12,73 +13,40 @@ const emptyHotel = {
   phone: '',
   price: '',
   currency: 'XOF',
-  image: '',
+  image: ''
 };
+
+const DEFAULT_HOTEL_IMAGE =
+  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400';
 
 const HotelsPage = () => {
   const [showModal, setShowModal] = useState(false);
+  const [editingHotel, setEditingHotel] = useState(null);
   const [newHotel, setNewHotel] = useState(emptyHotel);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [hotels, setHotels] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [listLoading, setListLoading] = useState(true);
+  const [saveError, setSaveError] = useState('');
+  const [saveLoading, setSaveLoading] = useState(false);
 
-  const hotels = [
-    {
-      id: 1,
-      image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400',
-      address: 'Boulevard Martin Luther King, Dakar',
-      name: 'Hôtel Terrou-Bi',
-      price: '85000 CFA',
-    },
-    {
-      id: 2,
-      image: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400',
-      address: 'Plateau, Dakar',
-      name: 'Hôtel Savana Dakar',
-      price: '75000 CFA',
-    },
-    {
-      id: 3,
-      image: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400',
-      address: 'Corniche Ouest, Dakar',
-      name: 'Radisson Blu Hotel Dakar',
-      price: '120000 CFA',
-    },
-    {
-      id: 4,
-      image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400',
-      address: 'Almadies, Dakar',
-      name: 'Hôtel La Madrague',
-      price: '65000 CFA',
-    },
-    {
-      id: 5,
-      image: 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=400',
-      address: 'Yoff, Dakar',
-      name: 'Hôtel Ngor',
-      price: '40000 CFA',
-    },
-    {
-      id: 6,
-      image: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400',
-      address: 'Mermoz, Dakar',
-      name: 'King Fahd Palace Hotel',
-      price: '150000 CFA',
-    },
-    {
-      id: 7,
-      image: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
-      address: 'Saly, Mbour',
-      name: 'Hôtel Lamantin Beach',
-      price: '55000 CFA',
-    },
-   
-     {
-      id: 8,
-      image: 'https://images.unsplash.com/photo-1564501049412-61c2a3085171?w=400',
-      address: 'place de lindependance, Dakar',
-      name: 'Hotel pullman',
-      price: '45000 CFA',
-    },
-  ];
+  const loadHotels = useCallback(async () => {
+    setLoadError('');
+    setListLoading(true);
+    try {
+      const list = await fetchHotels();
+      setHotels(list);
+    } catch (err) {
+      setLoadError(err.message || 'Impossible de charger les hôtels');
+      setHotels([]);
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHotels();
+  }, [loadHotels]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -88,22 +56,106 @@ const HotelsPage = () => {
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoPreview(URL.createObjectURL(file));
+    const maxBytes = 2 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setSaveError("L'image est trop volumineuse (maximum 2 Mo). Choisissez une photo plus légère.");
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPhotoPreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setNewHotel(emptyHotel);
-    setPhotoPreview(null);
-    setShowModal(false);
+    setSaveError('');
+    const priceLabel = [newHotel.price?.trim(), newHotel.currency].filter(Boolean).join(' ').trim();
+    const imageUrl = photoPreview || DEFAULT_HOTEL_IMAGE;
+
+    try {
+      setSaveLoading(true);
+      let result;
+      
+      if (editingHotel) {
+        result = await updateHotelRequest(editingHotel.id, {
+          name: newHotel.name.trim(),
+          address: newHotel.address.trim(),
+          email: newHotel.email.trim(),
+          phone: newHotel.phone.trim(),
+          priceLabel: priceLabel || `${newHotel.currency}`,
+          image: imageUrl
+        });
+      } else {
+        result = await createHotelRequest({
+          name: newHotel.name.trim(),
+          address: newHotel.address.trim(),
+          email: newHotel.email.trim(),
+          phone: newHotel.phone.trim(),
+          priceLabel: priceLabel || `${newHotel.currency}`,
+          image: imageUrl
+        });
+      }
+
+      if (result?.hotel) {
+        if (editingHotel) {
+          setHotels((prev) => prev.map(h => h.id === editingHotel.id ? result.hotel : h));
+        } else {
+          setHotels((prev) => [result.hotel, ...prev]);
+        }
+      } else {
+        await loadHotels();
+      }
+
+      setNewHotel(emptyHotel);
+      setPhotoPreview(null);
+      setEditingHotel(null);
+      setShowModal(false);
+    } catch (err) {
+      setSaveError(err.message || "Impossible d'enregistrer l'hôtel");
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   const handleModalClose = () => {
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setSaveError('');
     setPhotoPreview(null);
     setNewHotel(emptyHotel);
+    setEditingHotel(null);
     setShowModal(false);
+  };
+
+  const handleEditHotel = (hotel) => {
+    setEditingHotel(hotel);
+    setNewHotel({
+      name: hotel.name || '',
+      address: hotel.address || '',
+      email: hotel.email || '',
+      phone: hotel.phone || '',
+      price: hotel.price || '',
+      currency: 'XOF',
+      image: hotel.image || ''
+    });
+    setPhotoPreview(hotel.image || null);
+    setShowModal(true);
+  };
+
+  const handleDeleteHotel = async (hotel) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer l'hôtel "${hotel.name}" ?`)) {
+      return;
+    }
+
+    try {
+      await deleteHotelRequest(hotel.id);
+      setHotels((prev) => prev.filter(h => h.id !== hotel.id));
+    } catch (err) {
+      setSaveError(err.message || "Impossible de supprimer l'hôtel");
+    }
   };
 
   return (
@@ -113,12 +165,14 @@ const HotelsPage = () => {
       <div className="shrink-0 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 sm:py-4 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <p className="text-gray-800 font-medium">
-            Hôtels <span className="text-gray-600 font-normal">{hotels.length}</span>
+            Hôtels{' '}
+            <span className="text-gray-600 font-normal">{listLoading ? '…' : hotels.length}</span>
           </p>
           <button
             type="button"
             onClick={() => setShowModal(true)}
-            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-gray-900 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50 sm:w-auto sm:min-h-0 sm:px-5"
+            disabled={listLoading}
+            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-gray-900 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50 disabled:opacity-50 sm:w-auto sm:min-h-0 sm:px-5"
           >
             <FaPlus className="w-4 h-4" />
             Créer un nouveau hôtel
@@ -126,23 +180,52 @@ const HotelsPage = () => {
         </div>
       </div>
 
+      {loadError && (
+        <div className="shrink-0 border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-6 lg:px-8">
+          <p className="mx-auto max-w-7xl">{loadError}</p>
+          <button
+            type="button"
+            onClick={loadHotels}
+            className="mt-2 text-sm font-medium text-red-900 underline"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50">
         <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:p-6 lg:p-8">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
-            {hotels.map((hotel) => (
-              <HotelCard key={hotel.id} hotel={hotel} />
-            ))}
-          </div>
+          {listLoading ? (
+            <p className="text-center text-gray-600 text-sm">Chargement des hôtels…</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+              {hotels.map((hotel) => (
+                <HotelCard 
+                  key={hotel.id} 
+                  hotel={hotel} 
+                  onEdit={handleEditHotel}
+                  onDelete={handleDeleteHotel}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       <Modal isOpen={showModal} onClose={handleModalClose}>
+        {saveError && (
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {saveError}
+          </p>
+        )}
         <HotelForm
           hotel={newHotel}
           photoPreview={photoPreview}
           onChange={handleInputChange}
           onPhotoChange={handlePhotoChange}
           onSubmit={handleSubmit}
+          submitDisabled={saveLoading}
+          submitLabel={saveLoading ? 'Enregistrement…' : (editingHotel ? 'Mettre à jour' : 'Enregistrer')}
         />
       </Modal>
     </div>
