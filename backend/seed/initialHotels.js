@@ -56,5 +56,12 @@ export const INITIAL_HOTELS_SEED = [
     priceLabel: '55000 CFA',
     image: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400'
   },
-  
+  {
+    name: 'Hôtel Baobab',
+    address: 'Biscuiterie, Dakar',
+    email: 'contact@baobabhotel.sn',
+    phone: '+221 33 825 34 56',
+    priceLabel: '45000 CFA',
+    image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400'
+  }
 ];

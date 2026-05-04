@@ -7,7 +7,8 @@ const hotelSchema = new mongoose.Schema(
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: 200 },
     phone: { type: String, required: true, trim: true, maxlength: 50 },
     priceLabel: { type: String, required: true, trim: true, maxlength: 120 },
-    image: { type: String, required: true }
+    image: { type: String, required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
   },
   { timestamps: true }
 );

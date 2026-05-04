@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import Sidebar from '../components/Sidebar';
+import { getCurrentUser, getStoredToken } from '../services/authApi';
 
 const AppLayoutContext = createContext(null);
 
@@ -13,6 +14,7 @@ export function useAppLayout() {
 
 export default function AppLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState(null);
 
   const openSidebar = () => setSidebarOpen(true);
   const closeSidebar = () => setSidebarOpen(false);
@@ -36,7 +38,22 @@ export default function AppLayout({ children }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const value = { sidebarOpen, openSidebar, closeSidebar };
+  useEffect(() => {
+    const loadUser = async () => {
+      const token = getStoredToken();
+      if (token) {
+        try {
+          const userData = await getCurrentUser(token);
+          setUser(userData.user);
+        } catch (error) {
+          console.error('Failed to load user:', error);
+        }
+      }
+    };
+    loadUser();
+  }, []);
+
+  const value = { sidebarOpen, openSidebar, closeSidebar, user, setUser };
 
   return (
     <AppLayoutContext.Provider value={value}>
@@ -49,7 +66,7 @@ export default function AppLayout({ children }) {
             onClick={closeSidebar}
           />
         )}
-        <Sidebar />
+        <Sidebar user={user} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
       </div>
     </AppLayoutContext.Provider>

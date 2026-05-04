@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { FaHome, FaHotel, FaUser } from 'react-icons/fa';
 import { useAppLayout } from '../layout/AppLayout';
 
-const Sidebar = () => {
+const Sidebar = ({ user }) => {
   const { sidebarOpen, closeSidebar } = useAppLayout();
 
   const linkClass = ({ isActive }) =>
@@ -58,7 +58,7 @@ const Sidebar = () => {
             <FaUser className="text-sm text-slate-300" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-white">Aldjana seck</p>
+            <p className="truncate text-sm font-medium text-white">{user?.name || 'Utilisateur'}</p>
             <p className="text-xs text-emerald-400">en ligne</p>
           </div>
         </div>

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { seedHotelsForUser } from '../seed/seedHotels.js';
 
 const createToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -65,6 +66,9 @@ export const register = async (req, res) => {
 
     await user.save();
 
+    // Seed initial hotels for the new user
+    await seedHotelsForUser(user._id);
+
     const token = createToken(user._id);
     res.status(201).json({
       msg: 'Inscription reussie',
@@ -92,6 +96,9 @@ export const login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ msg: 'Identifiants invalides' });
+
+    // Seed initial hotels for existing users if they don't have any
+    await seedHotelsForUser(user._id);
 
     const token = createToken(user._id);
 

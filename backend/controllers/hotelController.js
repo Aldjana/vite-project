@@ -12,7 +12,7 @@ const toClientHotel = (doc) => ({
 
 export const listHotels = async (req, res) => {
   try {
-    const docs = await Hotel.find().sort({ createdAt: -1 }).lean();
+    const docs = await Hotel.find({ user: req.user.id }).sort({ createdAt: -1 }).lean();
     res.json({ hotels: docs.map((d) => toClientHotel(d)) });
   } catch (err) {
     res.status(500).json({ msg: 'Erreur serveur', error: err.message });
@@ -41,7 +41,8 @@ export const createHotel = async (req, res) => {
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
       priceLabel: priceLabel.trim(),
-      image: image.trim()
+      image: image.trim(),
+      user: req.user.id
     });
 
     res.status(201).json({ msg: 'Hôtel créé', hotel: toClientHotel(hotel) });
@@ -67,8 +68,8 @@ export const updateHotel = async (req, res) => {
       return res.status(400).json({ msg: 'Image requise (URL ou fichier)' });
     }
 
-    const hotel = await Hotel.findByIdAndUpdate(
-      id,
+    const hotel = await Hotel.findOneAndUpdate(
+      { _id: id, user: req.user.id },
       {
         name: name.trim(),
         address: address.trim(),
@@ -94,7 +95,7 @@ export const deleteHotel = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const hotel = await Hotel.findByIdAndDelete(id);
+    const hotel = await Hotel.findOneAndDelete({ _id: id, user: req.user.id });
 
     if (!hotel) {
       return res.status(404).json({ msg: 'Hôtel non trouvé' });
