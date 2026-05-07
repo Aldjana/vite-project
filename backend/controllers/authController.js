@@ -20,22 +20,73 @@ const buildResetUrl = (token) => {
   return `${frontendUrl}/reset-password/${token}`;
 };
 
-const createEmailTransporter = () => {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
+const sendEmailWithBrevoAPI = async (to, subject, text, html) => {
+  const { BREVO_API_KEY } = process.env;
+  
+  if (!BREVO_API_KEY) {
+    console.log(' No Brevo API key found, using Ethereal fallback');
     return null;
   }
 
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: Number(SMTP_PORT) === 465,
-    auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender: {
+          name: 'RED PRODUCT',
+          email: 'seckf004@gmail.com'
+        },
+        to: [{
+          email: to
+        }],
+        subject: subject,
+        htmlContent: html,
+        textContent: text
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Brevo API error:', error);
+      return null;
     }
-  });
+
+    const result = await response.json();
+    console.log('✅ Email sent via Brevo API:', result.messageId);
+    return result;
+  } catch (error) {
+    console.error('Brevo API failed:', error.message);
+    return null;
+  }
+};
+
+const createEmailTransporter = async () => {
+  // Fallback to Ethereal for testing
+  console.log(' Using Ethereal for testing');
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    console.log(' Ethereal test account created:');
+    console.log(`   Email: ${testAccount.user}`);
+    console.log(`   Password: ${testAccount.pass}`);
+    console.log(`   URL: https://ethereal.email/messages`);
+    
+    return nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to create Ethereal account:', error);
+    return null;
+  }
 };
 
 // REGISTER
@@ -152,26 +203,43 @@ export const forgotPassword = async (req, res) => {
     await user.save();
 
     const resetUrl = buildResetUrl(rawToken);
-    const transporter = createEmailTransporter();
 
+    // Try Brevo API first
     let mailOk = false;
-    if (transporter) {
-      try {
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
-          to: user.email,
-          subject: 'Réinitialisation du mot de passe - RED PRODUCT',
-          text: `Réinitialisation : utilisez ce lien pour choisir un nouveau mot de passe : ${resetUrl}\n\nCe lien expire dans 15 minutes.`,
-          html: `<p>Réinitialisation : cliquez sur le lien ci-dessous pour choisir un nouveau mot de passe.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Ce lien expire dans 15 minutes.</p>`
-        });
-        console.log('Email envoyé à:', user.email);
-        mailOk = true;
-      } catch (mailErr) {
-        console.log('Erreur envoi email:', mailErr.message);
-      }
+    const apiResult = await sendEmailWithBrevoAPI(
+      user.email,
+      'Réinitialisation du mot de passe - RED PRODUCT',
+      `Réinitialisation : utilisez ce lien pour choisir un nouveau mot de passe : ${resetUrl}\n\nCe lien expire dans 15 minutes.`,
+      `<p>Réinitialisation : cliquez sur le lien ci-dessous pour choisir un nouveau mot de passe.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Ce lien expire dans 15 minutes.</p>`
+    );
+
+    if (apiResult) {
+      mailOk = true;
+      console.log('✅ Email sent via Brevo API to:', user.email);
     } else {
-      // Show reset link when SMTP is not configured
-      mailOk = false;
+      // Fallback to Ethereal
+      const transporter = await createEmailTransporter();
+      if (transporter) {
+        try {
+          const info = await transporter.sendMail({
+            from: 'RED PRODUCT <noreply@ethereal.email>',
+            to: user.email,
+            subject: 'Réinitialisation du mot de passe - RED PRODUCT',
+            text: `Réinitialisation : utilisez ce lien pour choisir un nouveau mot de passe : ${resetUrl}\n\nCe lien expire dans 15 minutes.`,
+            html: `<p>Réinitialisation : cliquez sur le lien ci-dessous pour choisir un nouveau mot de passe.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>Ce lien expire dans 15 minutes.</p>`
+          });
+          console.log('📧 Email sent via Ethereal to:', user.email);
+          if (info.ethereal) {
+            console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info));
+          }
+          mailOk = true;
+        } catch (mailErr) {
+          console.log('Erreur envoi email Ethereal:', mailErr.message);
+        }
+      } else {
+        console.log('⚠️ Aucun service email disponible, lien de réinitialisation:', resetUrl);
+        mailOk = false;
+      }
     }
 
     const payload = {
